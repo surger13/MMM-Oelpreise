@@ -23,7 +23,7 @@ cd ~/MagicMirror/modules
 
 Clone this repository:
 ````
-git clone https://github.com/eckonator/MMM-Oelpreise.git
+git clone https://github.com/surger13/MMM-Oelpreise.git
 ````
 
 Install dependencies:
