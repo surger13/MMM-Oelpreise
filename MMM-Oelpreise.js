@@ -11,28 +11,27 @@ Module.register("MMM-Oelpreise", {
     jsonData: [],
     days: [],
     euros: [],
-    currentPrice: null, // Variable für den aktuellen Preis
-    previousPrice: null, // Variable für den Preis des Vortages
-    priceLastMonth: null, // Preis vom gleichen Tag des Vormonats
-    priceLastYear: null, // Preis vom gleichen Tag des Vorjahres
+    currentPrice: null,
+    previousPrice: null,
+    priceLastMonth: null,
+    priceLastYear: null,
     apiUrl: '',
 
     defaults: {
-        amount: '3000',  // amount in liter
-        updateInterval: 86400000, // 1 day in milliseconds
-        width: 1200,   // width in pixel
-        height: 800,    // height in pixel
-        showOverlay: true, // Zeigt das Overlay an, wenn true
-		overlayBlink: false, // Standardwert für das Blinken auf false setzen
-        overlayUnvisibleDuration: 3000, // Dauer, für die das Overlay ausgeblendet wird (in ms)
-        overlayInterval: 15000, // Dauer wie lang das Overlay angezeigt wird (in ms)
-        fadeDuration: 500, // Dauer des Fade-In/Out-Effekts (in ms)
-		
-		showPreviousDay: true,  // Anzeige des Preises vom Vortag
-		showLastMonth: true,     // Anzeige des Preises vom Vormonat
-		showLastYear: true,      // Anzeige des Preises vom Vorjahr
-		showMaxMin: true         // Anzeige der Max- und Minpreise
-	},
+        amount: '3000',  
+        updateInterval: 86400000, 
+        width: 1200,   
+        height: 800,    
+        showOverlay: true,
+        overlayBlink: false,
+        overlayUnvisibleDuration: 3000,
+        overlayInterval: 15000,
+        fadeDuration: 500,
+        showPreviousDay: true,
+        showLastMonth: true,
+        showLastYear: true,
+        showMaxMin: true
+    },
 
     getScripts: function() {
         return ["modules/" + this.name + "/node_modules/chart.js/dist/chart.min.js"];
@@ -52,7 +51,6 @@ Module.register("MMM-Oelpreise", {
         }, this.config.updateInterval);
     },
 
-    // Request node_helper to get json from url
     getJson: function () {
         this.apiUrl = 'https://www.heizoel24.de/api/site/1/prices/history?amount=' + this.config.amount + '&productId=1&rangeType=6';
         this.sendSocketNotification("MMM-Oelpreise_GET_JSON", this.apiUrl);
@@ -82,6 +80,8 @@ Module.register("MMM-Oelpreise", {
     },
 
     getPriceForDate: function(date) {
+        if (!this.jsonData || this.jsonData.length === 0) return null;
+
         for (let i = this.jsonData.length - 1; i >= 0; i--) {
             let dataDate = new Date(this.jsonData[i].DateTime);
             if (dataDate.getFullYear() === date.getFullYear() && dataDate.getMonth() === date.getMonth() && dataDate.getDate() === date.getDate()) {
@@ -90,34 +90,34 @@ Module.register("MMM-Oelpreise", {
         }
         return null;
     },
-	
-	getMaxMinForLastYear: function() {
-    let today = new Date(this.jsonData[this.jsonData.length - 1].DateTime);
-    let lastYearDate = new Date(today.getFullYear() - 1, today.getMonth(), today.getDate());
 
-    let filteredData = this.jsonData.filter((data) => {
-        let dataDate = new Date(data.DateTime);
-        return dataDate >= lastYearDate && dataDate <= today;
-    });
+    getMaxMinForLastYear: function() {
+        if (!this.jsonData || this.jsonData.length === 0) return { max: null, min: null };
 
-    if (filteredData.length > 0) {
-        let prices = filteredData.map(data => data.Price);
-        let maxPrice = Math.max(...prices);
-        let minPrice = Math.min(...prices);
-        return { max: maxPrice, min: minPrice };
-    }
+        let today = new Date(this.jsonData[this.jsonData.length - 1].DateTime);
+        let lastYearDate = new Date(today.getFullYear() - 1, today.getMonth(), today.getDate());
 
-    return { max: null, min: null };
-},
+        let filteredData = this.jsonData.filter((data) => {
+            let dataDate = new Date(data.DateTime);
+            return dataDate >= lastYearDate && dataDate <= today;
+        });
+
+        if (filteredData.length > 0) {
+            let prices = filteredData.map(data => data.Price);
+            let maxPrice = Math.max(...prices);
+            let minPrice = Math.min(...prices);
+            return { max: maxPrice, min: minPrice };
+        }
+
+        return { max: null, min: null };
+    },
 
     getDom: function() {
         var self = this;
 
-        // Create wrapper element
         const wrapperEl = document.createElement("div");
         wrapperEl.setAttribute("style", "position: relative; display: inline-block; color: white;");
 
-        // Create overlay element for the information only if showOverlay is true
         const overlayEl = document.createElement("div");
         if (this.config.showOverlay) {
             overlayEl.setAttribute("style", `
@@ -133,143 +133,93 @@ Module.register("MMM-Oelpreise", {
                 transition: opacity ${this.config.fadeDuration}ms ease-in-out;
             `);
 
-            // Current Price
-			const currentPriceEl = document.createElement("div");
+            // Aktueller Preis
+            const currentPriceEl = document.createElement("div");
+            currentPriceEl.innerHTML = `
+                <span style="color: grey; font-size: 20px;">Heute:</span> 
+                <span style="color: white; font-size: 24px;">
+                    ${this.currentPrice !== null ? this.currentPrice.toFixed(2) : 'Warte auf Daten...'}
+                </span>
+                <span style="color: grey; font-size: 20px;"> €</span>
+            `;
+            currentPriceEl.setAttribute("style", "margin-bottom: 0px");
+            overlayEl.appendChild(currentPriceEl);
 
-			// Formatierung des Preises mit unterschiedlichen Farben und Schriftgrößen
-			currentPriceEl.innerHTML = `
-				<span style="color: grey; font-size: 20px;">Heute:</span> 
-				<span style="color: white; font-size: 24px;">
-					${this.currentPrice !== null ? this.currentPrice.toFixed(2) : 'Warte auf Daten...'}
-				</span>
-				<span style="color: grey; font-size: 20px;"> €</span>
-			`;
-			currentPriceEl.setAttribute("style", "margin-bottom: 0px");
-			overlayEl.appendChild(currentPriceEl);
+            function getArrow(previousPrice, currentPrice) {
+                return previousPrice < currentPrice ? '↓' : '↑';
+            }
 
+            // Änderungen: Vortag, Vormonat, Vorjahr
+            const changes = [
+                { key: 'previousPrice', label: 'Vortag', show: this.config.showPreviousDay },
+                { key: 'priceLastMonth', label: 'Vormonat', show: this.config.showLastMonth },
+                { key: 'priceLastYear', label: 'Vorjahr', show: this.config.showLastYear }
+            ];
 
+            changes.forEach(item => {
+                if (item.show) {
+                    const el = document.createElement("div");
+                    const priceValue = this[item.key];
+                    if (priceValue !== null && this.currentPrice !== null) {
+                        let percentageChange = ((this.currentPrice - priceValue) / priceValue) * 100;
+                        let arrow = getArrow(priceValue, this.currentPrice);
+                        el.innerHTML = `${item.label}: ${percentageChange.toFixed(1)}% (${priceValue.toFixed(2)} €) ${arrow}`;
+                        el.setAttribute("style", "font-size: 16px; margin-bottom: 0px; color: " + (percentageChange > 0 ? "red" : "green") + ";");
+                    } else {
+                        el.innerHTML = 'Warte auf Daten...';
+                        el.setAttribute("style", "font-size: 16px; margin-bottom: 0px;");
+                    }
+                    overlayEl.appendChild(el);
+                }
+            });
 
-			// Funktion zum Einfügen des Pfeils basierend auf der Änderung
-			function getArrow(previousPrice, currentPrice) {
-				return previousPrice < currentPrice ? '↓' : '↑'; // Pfeil nach unten wenn der vorherige Preis niedriger war als der Aktuelle
-			}
+            // Max/Min des letzten Jahres
+            if (this.config.showMaxMin) {
+                let maxMin = this.getMaxMinForLastYear();
 
-            // "Änderung"-Textzeile
-            const changeLabelEl = document.createElement("div");
-            changeLabelEl.innerHTML = "Änderung zum";
-            changeLabelEl.setAttribute("style", "font-size: 16px; margin-top: 0px; color: grey;");
-            overlayEl.appendChild(changeLabelEl);
+                const maxEl = document.createElement("div");
+                if (maxMin.max !== null && this.currentPrice !== null) {
+                    let perc = ((this.currentPrice - maxMin.max) / maxMin.max) * 100;
+                    let arrow = getArrow(maxMin.max, this.currentPrice);
+                    maxEl.innerHTML = `Max. (letztes Jahr): ${perc.toFixed(1)}% (${maxMin.max.toFixed(2)} €) ${arrow}`;
+                    maxEl.setAttribute("style", "font-size: 16px; margin-bottom: 0px; color: " + (perc > 0 ? "red" : "green") + ";");
+                } else {
+                    maxEl.innerHTML = 'Warte auf Daten...';
+                    maxEl.setAttribute("style", "font-size: 16px; margin-bottom: 0px;");
+                }
+                overlayEl.appendChild(maxEl);
 
-            // Änderung zum Vortag
-			if (this.config.showPreviousDay) {
-				const dayChangeEl = document.createElement("div");
-				if (this.previousPrice !== null) {  
-					let percentageChangeDay = ((this.currentPrice - this.previousPrice) / this.previousPrice) * 100;
-					let arrowDay = getArrow(percentageChangeDay);  // Pfeil basierend auf der Änderung
-					dayChangeEl.innerHTML = `Vortag: ${percentageChangeDay.toFixed(1)}% (${this.previousPrice.toFixed(2)} €) ` + arrowDay;
-					dayChangeEl.setAttribute("style", "font-size: 16px; margin-bottom: 0px; color: " + (percentageChangeDay > 0 ? "red" : "green") + ";");
-				} else {
-					dayChangeEl.innerHTML = 'Warte auf Daten...';
-					dayChangeEl.setAttribute("style", "font-size: 16px; margin-bottom: 0px;");
-				}
-				overlayEl.appendChild(dayChangeEl);
-			}
-
-			// Änderung zum Vormonat
-			if (this.config.showLastMonth) {
-				const changeLastMonthEl = document.createElement("div");
-				if (this.priceLastMonth !== null) {
-					let percentageChangeLastMonth = ((this.currentPrice - this.priceLastMonth) / this.priceLastMonth) * 100;
-					let arrowMonth = getArrow(this.priceLastMonth, this.currentPrice);
-					changeLastMonthEl.innerHTML = "Vormonat: " + percentageChangeLastMonth.toFixed(1) + '% (' + this.priceLastMonth.toFixed(2) + ' €) ' + arrowMonth;
-					changeLastMonthEl.setAttribute("style", "font-size: 16px; margin-bottom: 0px; color: " + (percentageChangeLastMonth > 0 ? "red" : "green") + ";");
-				} else {
-					changeLastMonthEl.innerHTML = 'Warte auf Daten...';
-					changeLastMonthEl.setAttribute("style", "font-size: 16px; margin-bottom: 0px;");
-				}
-				overlayEl.appendChild(changeLastMonthEl);
-			}
-
-			// Änderung zum Vorjahr
-			if (this.config.showLastYear) {
-				const changeLastYearEl = document.createElement("div");
-				if (this.priceLastYear !== null) {
-					let percentageChangeLastYear = ((this.currentPrice - this.priceLastYear) / this.priceLastYear) * 100;
-					let arrowYear = getArrow(this.priceLastYear, this.currentPrice);
-					changeLastYearEl.innerHTML = "Vorjahr: " + percentageChangeLastYear.toFixed(1) + '% (' + this.priceLastYear.toFixed(2) + ' €) ' + arrowYear;
-					changeLastYearEl.setAttribute("style", "font-size: 16px; margin-bottom: 0px; color: " + (percentageChangeLastYear > 0 ? "red" : "green") + ";");
-				} else {
-					changeLastYearEl.innerHTML = 'Warte auf Daten...';
-					changeLastYearEl.setAttribute("style", "font-size: 16px; margin-bottom: 0px;");
-				}
-				overlayEl.appendChild(changeLastYearEl);
-			}
-
-		// Maxima und Minima des letzten Jahres abrufen
-		if (this.config.showMaxMin) {
-			let maxMin = this.getMaxMinForLastYear(); // Aufruf der Funktion zur Berechnung von Maxima und Minima
-
-			// Änderung zu Maximalpreis des letzten Jahres
-			const maxPriceEl = document.createElement("div");
-			if (maxMin.max !== null) {
-				let percentageChangeMax = ((this.currentPrice - maxMin.max) / maxMin.max) * 100;
-				let arrowMax = getArrow(maxMin.max, this.currentPrice);
-				maxPriceEl.innerHTML = "Max. (letztes Jahr): " + percentageChangeMax.toFixed(1) + '% (' + maxMin.max.toFixed(2) + ' €) ' + arrowMax;
-				maxPriceEl.setAttribute("style", "font-size: 16px; margin-bottom: 0px; color: " + (percentageChangeMax > 0 ? "red" : "green") + ";");
-			} else {
-				maxPriceEl.innerHTML = 'Warte auf Daten...';
-				maxPriceEl.setAttribute("style", "font-size: 16px; margin-bottom: 0px;");
-			}
-			overlayEl.appendChild(maxPriceEl);
-
-			// Änderung zu Minimalpreis des letzten Jahres
-			const minPriceEl = document.createElement("div");
-			if (maxMin.min !== null) {
-				let percentageChangeMin = ((this.currentPrice - maxMin.min) / maxMin.min) * 100;
-				let arrowMin = getArrow(maxMin.min, this.currentPrice);
-				minPriceEl.innerHTML = "Min. (letztes Jahr): " + percentageChangeMin.toFixed(1) + '% (' + maxMin.min.toFixed(2) + ' €) ' + arrowMin;
-				minPriceEl.setAttribute("style", "font-size: 16px; margin-bottom: 0px; color: " + (percentageChangeMin > 0 ? "red" : "green") + ";");
-			} else {
-				minPriceEl.innerHTML = 'Warte auf Daten...';
-				minPriceEl.setAttribute("style", "font-size: 16px; margin-bottom: 0px;");
-			}
-			overlayEl.appendChild(minPriceEl);
-			}
+                const minEl = document.createElement("div");
+                if (maxMin.min !== null && this.currentPrice !== null) {
+                    let perc = ((this.currentPrice - maxMin.min) / maxMin.min) * 100;
+                    let arrow = getArrow(maxMin.min, this.currentPrice);
+                    minEl.innerHTML = `Min. (letztes Jahr): ${perc.toFixed(1)}% (${maxMin.min.toFixed(2)} €) ${arrow}`;
+                    minEl.setAttribute("style", "font-size: 16px; margin-bottom: 0px; color: " + (perc > 0 ? "red" : "green") + ";");
+                } else {
+                    minEl.innerHTML = 'Warte auf Daten...';
+                    minEl.setAttribute("style", "font-size: 16px; margin-bottom: 0px;");
+                }
+                overlayEl.appendChild(minEl);
+            }
         }
 
-        // Append overlay to wrapper only if showOverlay is true
-        if (this.config.showOverlay) {
-            wrapperEl.appendChild(overlayEl);
-        }
+        if (this.config.showOverlay) wrapperEl.appendChild(overlayEl);
 
-        // Chart Data
+        // Chart-Daten
         self.euros = [];
         self.days = [];
-
-        var allData = this.jsonData;
-
-        // Sortiere die Daten nach Datum (aufsteigend)
-        allData.sort(function(a, b) {
-            return new Date(a['DateTime']) - new Date(b['DateTime']);
-        });
-
-        // Befülle die Arrays mit den Daten
-        for (var i = 0; i < allData.length; i++) {
-            var obj = allData[i];
-            var date = new Date(obj['DateTime']);
-
-            var month = date.getMonth() + 1;
-            var day = date.getDate();
-
-            month = (month < 10 ? "0" : "") + month;
-            day = (day < 10 ? "0" : "") + day;
-
-            self.days.push(day + "." + month);
-            self.euros.push(obj['Price']);
+        if (this.jsonData && this.jsonData.length > 0) {
+            const allData = this.jsonData.slice().sort((a, b) => new Date(a.DateTime) - new Date(b.DateTime));
+            allData.forEach(obj => {
+                const date = new Date(obj.DateTime);
+                const month = (date.getMonth() + 1).toString().padStart(2, '0');
+                const day = date.getDate().toString().padStart(2, '0');
+                self.days.push(`${day}.${month}`);
+                self.euros.push(obj.Price);
+            });
         }
 
-        // Chart-Konfiguration
-        var chartConfig = {
+        const chartConfig = {
             type: 'line',
             data: {
                 labels: self.days,
@@ -279,77 +229,45 @@ Module.register("MMM-Oelpreise", {
                     fill: true,
                     backgroundColor: 'rgb(255, 255, 255, .3)',
                     borderColor: 'rgb(255, 255, 255)',
-                    borderWidth: 3, // Setze die Linienbreite Chart
-                    pointRadius: 0 // Punkte ausblenden
+                    borderWidth: 3,
+                    pointRadius: 0
                 }]
             },
             options: {
                 responsive: true,
-                plugins: {
-                    legend: {
-                        display: false,
-                    }
-                },
+                plugins: { legend: { display: false } },
                 scales: {
-                    x: {
-                        ticks: {
-                            color: "white"
-                        },
-						grid: {
-							display: false // Gitterlinien für die x-Achse ausblenden
-						}
-                    },
-                    y: {
-                        ticks: {
-                            color: "white",
-                            callback: function(value, index, ticks) {
-                                return value + '€';
-                            }
-                        },
-						grid: {
-							display: false // Gitterlinien für die y-Achse ausblenden
-						}
-                    }
+                    x: { ticks: { color: "white" }, grid: { display: false } },
+                    y: { ticks: { color: "white", callback: v => v + '€' }, grid: { display: false } }
                 }
             }
         };
 
-        // Create chart canvas
         const chartEl = document.createElement("canvas");        
-        var myChart = new Chart(chartEl.getContext("2d"), chartConfig);
+        new Chart(chartEl.getContext("2d"), chartConfig);
         chartEl.width = this.config.width;
         chartEl.height = this.config.height;
         chartEl.setAttribute("style", "display: block;");
-
-        // Append chart
         wrapperEl.appendChild(chartEl);
 
-		// Timer für das Overlay-Element
-		var overlayVisible = false; // Startwert auf false setzen
-		var overlayTimer; // Variable für den Overlay-Timer
-
-		// Überprüfen, ob das Blinken aktiviert ist
-		if (this.config.overlayBlink) {
-			// Mache das Overlay sichtbar
-			overlayEl.style.opacity = '1'; 
-			overlayVisible = true;
-
-			// Timer für die Sichtbarkeit
-			overlayTimer = setInterval(function() {
-				if (overlayVisible) {
-					overlayEl.style.opacity = '0'; // Mache das Overlay unsichtbar
-					overlayVisible = false; // Setze den Status auf unsichtbar
-					// Timer für die nächste Sichtbarkeit
-					setTimeout(function() {
-						overlayEl.style.opacity = '1'; // Mache das Overlay sichtbar
-						overlayVisible = true; // Setze den Status auf sichtbar
-					}, self.config.overlayUnvisibleDuration); // Warte die Dauer, bevor es wieder sichtbar wird
-				}
-			}, self.config.overlayUnvisibleDuration + self.config.overlayInterval); // Gesamtzeit für einen Blinkzyklus
-		} else {
-			// Wenn das Blinken nicht aktiviert ist, stelle sicher, dass das Overlay dauerhaft angezeigt wird
-			overlayEl.style.opacity = '1'; // Immer sichtbar
-		}
+        // Overlay Blink
+        let overlayVisible = false;
+        if (this.config.overlayBlink && this.config.showOverlay) {
+            overlayEl.style.opacity = '1';
+            overlayVisible = true;
+            setInterval(() => {
+                if (overlayVisible) {
+                    overlayEl.style.opacity = '0';
+                    overlayVisible = false;
+                    setTimeout(() => {
+                        overlayEl.style.opacity = '1';
+                        overlayVisible = true;
+                    }, self.config.overlayUnvisibleDuration);
+                }
+            }, self.config.overlayUnvisibleDuration + self.config.overlayInterval);
+        } else if (this.config.showOverlay) {
+            overlayEl.style.opacity = '1';
+        }
 
         return wrapperEl;
     }
